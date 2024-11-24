@@ -1,5 +1,5 @@
 from django.shortcuts import redirect
-from rest_framework import generics
+from rest_framework import generics, status, permissions
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from allauth.socialaccount.models import SocialToken, SocialAccount
 from django.contrib.auth.decorators import login_required
@@ -9,14 +9,12 @@ from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
-from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserSerializer, BookSerializer
+from .serializers import UserSerializer, BookSerializer, ReviewSerializer
 from rest_framework.viewsets import ModelViewSet
-from .models import Book
+from .models import Book, Review
 from rest_framework.filters import SearchFilter
-from rest_framework.permissions import IsAuthenticated
 
 
 
@@ -108,3 +106,20 @@ class BookSerializer(serializers.ModelSerializer):
 class BookViewSet(viewsets.ModelViewSet):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
+
+
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        book_id = self.request.query_params.get('book_id', None)
+        if book_id:
+            return Review.objects.filter(book_id=book_id)
+        return Review.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

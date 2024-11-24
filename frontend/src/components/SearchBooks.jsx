@@ -6,11 +6,12 @@ import { Link } from 'react-router-dom';
 const SearchBooks = () => {
     const [results, setResults] = useState([]);
     const [error, setError] = useState(null);
-    const location = useLocation(); // Получаем параметры URL
-    const query = new URLSearchParams(location.search).get('query'); // Получаем query из параметров URL
+    const [isLoading, setIsLoading] = useState(false);
+    const location = useLocation();
+    const query = new URLSearchParams(location.search).get('query');
 
     const fetchData = async () => {
-        if (!query || query.trim() === '') {
+        if (!query?.trim()) {
             setResults([]);
             return;
         }
@@ -21,51 +22,89 @@ const SearchBooks = () => {
             return;
         }
 
+        setIsLoading(true);
+        setError(null);
+
         try {
-            const response = await axios.get(`http://127.0.0.1:8000/api/books/?search=${query}`, {
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                },
-            });
+            const response = await axios.get(
+                `http://127.0.0.1:8000/api/books/?search=${encodeURIComponent(query)}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                }
+            );
             setResults(response.data);
-            setError(null);
         } catch (error) {
-            if (error.response && error.response.status === 401) {
-                setError('Unauthorized: Please log in.');
-            } else {
-                setError('Error fetching data. Please try again.');
-            }
+            setError(
+                error.response?.status === 401
+                    ? 'Unauthorized: Please log in.'
+                    : 'Error fetching data. Please try again.'
+            );
             setResults([]);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     useEffect(() => {
         fetchData();
-    }, [query]);
+    }, [query]); // Make sure to add query as a dependency
+
+    if (isLoading) {
+        return <div className="text-center p-4">Loading...</div>;
+    }
 
     return (
-        <div>
-            <h2>Search Results for "{query}"</h2>
-            {error && <p style={{ color: 'red' }}>{error}</p>}
+        <div className="p-4">
+            <h2 className="text-2xl font-bold mb-4">
+                Search Results for "{query || ''}"
+            </h2>
+
+            {error && (
+                <p className="text-red-500 mb-4 p-2 bg-red-100 rounded">
+                    {error}
+                </p>
+            )}
+
             <div>
                 {results.length > 0 ? (
-                    <div className="book-list">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {results.map((book) => (
-                            <div key={book.id} className="book-item">
-                                <Link to={`/books/${book.bookId}`}>
-                                    <img
-            src={book.coverImg}
-            alt={`${book.title} cover`}
-          // style={{ maxWidth: '500px', marginBottom: '100px' }} // Пример стилей
-        />
-                                    <h3>{book.title}</h3>
-                                    <p>{book.author}</p>
+                            // Use both id and bookId as fallbacks for the key
+                            <div
+                                key={book.id || book.bookId || `${book.title}-${book.author}`}
+                                className="border rounded-lg p-4 hover:shadow-lg transition-shadow"
+                            >
+                                <Link
+                                    to={`/books/${book.bookId || book.id}`}
+                                    className="block"
+                                >
+                                    {book.coverImg && (
+                                        <img
+                                            src={book.coverImg}
+                                            alt={`${book.title} cover`}
+                                            className="w-full h-48 object-cover mb-4 rounded"
+                                            onError={(e) => {
+                                                e.target.src = '/placeholder-book.png'; // Add a placeholder image
+                                                e.target.onerror = null; // Prevent infinite loop
+                                            }}
+                                        />
+                                    )}
+                                    <h3 className="text-lg font-semibold mb-2">
+                                        {book.title}
+                                    </h3>
+                                    <p className="text-gray-600">
+                                        {book.author}
+                                    </p>
                                 </Link>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <p>No results found.</p>
+                    <p className="text-gray-600 text-center py-8">
+                        {query?.trim() ? 'No results found.' : 'Enter a search term to find books.'}
+                    </p>
                 )}
             </div>
         </div>
